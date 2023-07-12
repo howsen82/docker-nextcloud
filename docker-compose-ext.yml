@@ -1,0 +1,90 @@
+version: '3.9'
+
+services:
+  db:
+    image: mariadb:latest
+    container_name: nextcloud-mariadb
+    restart: unless-stopped
+    command: --transaction-isolation=READ-COMMITTED --log-bin=binlog --binlog-format=ROW
+    networks:
+      - nextcloud_network
+    volumes:
+      - db:/var/lib/mysql
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - MYSQL_ROOT_PASSWORD
+      - MYSQL_PASSWORD
+      - MYSQL_DATABASE
+      - MYSQL_USER
+
+  app:
+    image: nextcloud:fpm
+    container_name: nextcloud-app
+    restart: unless-stopped
+    ports:
+      - 8080:80
+    networks:
+      - nextcloud_network
+    depends_on:
+      - letsencrypt
+      - proxy
+      - db
+    volumes:
+      - nextcloud:/var/www/html
+      - nextcloud_config:/var/www/html/config
+      - nextcloud_app:/var/www/html/custom_apps
+      - nextcloud_data:/var/www/html/data
+      - nextcloud_themes:/var/www/html/themes
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - VIRTUAL_HOST
+      - LETSENCRYPT_HOST
+      - LETSENCRYPT_EMAIL
+
+  proxy:
+    image: nginxproxy/nginx-proxy:alpine
+    container_name: nextcloud-proxy
+    restart: unless-stopped
+    labels:
+      - com.github.jrcs.letsencrypt_nginx_proxy_companion.nginx_proxy=true
+    networks:
+      - nextcloud_network
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - ./proxy/conf.d:/etc/nginx/conf.d:rw
+      - ./proxy/vhost.d:/etc/nginx/vhost.d:rw
+      - ./proxy/html:/usr/share/nginx/html:rw
+      - ./proxy/certs:/etc/nginx/certs:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+
+  letsencrypt:
+    image: nginxproxy/acme-companion:latest
+    container_name: nextcloud-letsencrypt
+    restart: unless-stopped
+    depends_on:
+      - proxy
+    networks:
+      - nextcloud_network
+    volumes:
+      - ./proxy/certs:/etc/nginx/certs:rw
+      - ./proxy/vhost.d:/etc/nginx/vhost.d:rw
+      - ./proxy/html:/usr/share/nginx/html:rw
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+volumes:
+  nextcloud:
+  nextcloud_app:
+  nextcloud_config:
+  nextcloud_data:
+  nextcloud_themes:
+  db:
+
+networks:
+  nextcloud_network:
+
+# docker-compose -f docker-compose-ext.yml up -d
+# docker-compose -f docker-compose-ext.yml down -v
