@@ -1,0 +1,16 @@
+version: '3.9'
+
+services:
+  nextcloud:
+    container_name: nextcloud
+    image: lscr.io/linuxserver/nextcloud
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Kuching
+    volumes:
+      - /data/nextcloud/appdata:/config
+      - /data/nextcloud/data:/data
+    ports:
+      - 443:443
+    restart: unless-stopped
